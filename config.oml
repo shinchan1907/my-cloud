@@ -1,0 +1,9 @@
+[app]
+# ... other settings
+
+[database]
+host = "db"
+port = 5432
+user = "listmonk_user"
+password = "Account102@@"
+database = "listmonk_db"
