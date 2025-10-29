@@ -47,8 +47,6 @@ services:
     volumes:
       - listmonk_data:/app/data
       - ./config.toml:/app/config.toml
-      - listmonk_data:/app/data
-
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.listmonk.rule=Host(`newsletter.bytenex.io`)"
