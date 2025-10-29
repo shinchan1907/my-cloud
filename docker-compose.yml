@@ -1,0 +1,94 @@
+version: "3.8"
+
+services:
+  traefik:
+    image: traefik:v2.9
+    command:
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.leresolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.leresolver.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.leresolver.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./letsencrypt:/letsencrypt"
+    networks:
+      - proxy
+
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    restart: always
+
+  listmonk:
+    image: listmonk/listmonk:latest
+    depends_on:
+      - db
+    environment:
+      LISTMONK_DB_HOST: db
+      LISTMONK_DB_PORT: 5432
+      LISTMONK_DB_USER: ${DB_USER}
+      LISTMONK_DB_PASSWORD: ${DB_PASS}
+      LISTMONK_DB_DATABASE: ${DB_NAME}
+    volumes:
+      - listmonk_data:/app/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.listmonk.rule=Host(`newsletter.bytenex.io`)"
+      - "traefik.http.routers.listmonk.entrypoints=websecure"
+      - "traefik.http.routers.listmonk.tls.certresolver=leresolver"
+    networks:
+      - proxy
+      - internal
+    restart: always
+
+  n8n:
+    image: n8nio/n8n:latest
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASS}
+      - WEBHOOK_URL=https://n8n.bytenex.io/
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.n8n.rule=Host(`n8n.bytenex.io`)"
+      - "traefik.http.routers.n8n.entrypoints=websecure"
+      - "traefik.http.routers.n8n.tls.certresolver=leresolver"
+    networks:
+      - proxy
+    restart: always
+
+  evolution-api:
+    image: evolutionsapi/evolution-api:latest
+    environment:
+      - E_API_TOKEN=${E_API_TOKEN}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.evolution.rule=Host(`wa.bytenex.io`)"
+      - "traefik.http.routers.evolution.entrypoints=websecure"
+      - "traefik.http.routers.evolution.tls.certresolver=leresolver"
+    networks:
+      - proxy
+    restart: always
+
+volumes:
+  db_data:
+  listmonk_data:
+
+networks:
+  proxy:
+  internal:
